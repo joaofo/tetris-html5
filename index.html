@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tetris (HTML5)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="header">
+      <h1>Tetris</h1>
+      <p class="sub">HTML5 Canvas. Keyboard + touch. No dependencies.</p>
+    </header>
+
+    <section class="grid">
+      <div class="panel">
+        <canvas id="game" width="300" height="600" aria-label="Tetris game" role="img"></canvas>
+        <div class="controls">
+          <button id="btnStart" type="button">Start / Restart</button>
+          <button id="btnPause" type="button">Pause</button>
+        </div>
+        <p class="hint">
+          Controls: ← → move · ↑ rotate · ↓ soft drop · Space hard drop · P pause
+        </p>
+      </div>
+
+      <aside class="sidebar">
+        <div class="card">
+          <h2>Status</h2>
+          <div class="stat"><span>Score</span><strong id="score">0</strong></div>
+          <div class="stat"><span>Lines</span><strong id="lines">0</strong></div>
+          <div class="stat"><span>Level</span><strong id="level">1</strong></div>
+        </div>
+
+        <div class="card">
+          <h2>Next</h2>
+          <canvas id="next" width="120" height="120" aria-label="Next piece" role="img"></canvas>
+        </div>
+
+        <div class="card">
+          <h2>Touch</h2>
+          <div class="touch">
+            <button id="tLeft" type="button">←</button>
+            <button id="tRot" type="button">⟳</button>
+            <button id="tRight" type="button">→</button>
+            <button id="tDown" type="button">↓</button>
+            <button id="tDrop" type="button">Drop</button>
+          </div>
+          <p class="hint">Tip: drag on the board also moves left/right; tap rotates.</p>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <small>Made for Joao · Runs entirely in your browser.</small>
+    </footer>
+  </main>
+
+  <script src="tetris.js"></script>
+</body>
+</html>
