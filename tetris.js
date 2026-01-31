@@ -4,7 +4,7 @@
   // --- Config ---
   const COLS = 10;
   const ROWS = 20;
-  const BLOCK = 30; // px; must match canvas size (300x600)
+  const BLOCK = 30; // px; canvas is 300x600
 
   // Score system: classic-ish
   const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -21,50 +21,86 @@
     GRID: 'rgba(255,255,255,0.06)'
   };
 
+  // Lean Six Sigma progression (Green Belt → Black Belt manufacturing)
+  // Note: labels are kept short to fit in bricks.
+  const BELTS = [
+    {
+      name: 'Green Belt',
+      fromLevel: 1,
+      toLevel: 3,
+      concepts: [
+        'DMAIC', 'SIPOC', 'VOC', 'CTQ', '5S', 'VSM', 'KAIZEN', 'GEMBA',
+        'TAKT', 'KANBAN', 'POKAY', 'ANDON', 'OEE', 'SMED', 'TPM',
+        'SPC', 'MSA', 'FMEA', 'PARETO', '5WHY'
+      ]
+    },
+    {
+      name: 'Black Belt (Mfg)',
+      fromLevel: 4,
+      toLevel: 99,
+      concepts: [
+        'DOE', 'ANOVA', 'REG', 'HYP', 'Cpk', 'Cp', 'CONTROL', 'DFSS',
+        'CT', 'Y=F(X)', 'SPC', 'MSA', 'FMEA', 'OEE', 'TPM', 'SMED',
+        'VSM', 'TAKT', 'KANBAN', 'HEIJ'
+      ]
+    }
+  ];
+
+  const labelFor = (s) => {
+    const t = String(s || '').trim();
+    if (!t) return '';
+    // Max ~6 chars for readability in a 30px cell
+    return t.length > 6 ? t.slice(0, 6) : t;
+  };
+
+  function beltForLevel(level) {
+    return BELTS.find(b => level >= b.fromLevel && level <= b.toLevel) || BELTS[0];
+  }
+
   // 4x4 rotation matrices for each piece
   const SHAPES = {
     I: [
-      [0,0,0,0],
-      [1,1,1,1],
-      [0,0,0,0],
-      [0,0,0,0]
+      [0, 0, 0, 0],
+      [1, 1, 1, 1],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
     ],
     O: [
-      [0,1,1,0],
-      [0,1,1,0],
-      [0,0,0,0],
-      [0,0,0,0]
+      [0, 1, 1, 0],
+      [0, 1, 1, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
     ],
     T: [
-      [0,1,0,0],
-      [1,1,1,0],
-      [0,0,0,0],
-      [0,0,0,0]
+      [0, 1, 0, 0],
+      [1, 1, 1, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
     ],
     S: [
-      [0,1,1,0],
-      [1,1,0,0],
-      [0,0,0,0],
-      [0,0,0,0]
+      [0, 1, 1, 0],
+      [1, 1, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
     ],
     Z: [
-      [1,1,0,0],
-      [0,1,1,0],
-      [0,0,0,0],
-      [0,0,0,0]
+      [1, 1, 0, 0],
+      [0, 1, 1, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
     ],
     J: [
-      [1,0,0,0],
-      [1,1,1,0],
-      [0,0,0,0],
-      [0,0,0,0]
+      [1, 0, 0, 0],
+      [1, 1, 1, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
     ],
     L: [
-      [0,0,1,0],
-      [1,1,1,0],
-      [0,0,0,0],
-      [0,0,0,0]
-    ],
+      [0, 0, 1, 0],
+      [1, 1, 1, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ]
   };
 
   const PIECES = Object.keys(SHAPES);
@@ -89,10 +125,7 @@
   const tDrop = document.getElementById('tDrop');
 
   // --- Helpers ---
-  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-
   function rotateMatrixCW(m) {
-    // 4x4
     const out = m.map(row => row.slice());
     for (let y = 0; y < 4; y++) {
       for (let x = 0; x < 4; x++) {
@@ -103,16 +136,35 @@
   }
 
   function makeBoard() {
+    // cell = null | { type: 'I'|'O'|..., label: 'DMAIC' }
     return Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => null));
   }
 
-  function drawCell(x, y, color, alpha = 1) {
+  function drawCell(x, y, color, label, alpha = 1) {
     ctx.save();
     ctx.globalAlpha = alpha;
+
+    const px = x * BLOCK;
+    const py = y * BLOCK;
+
     ctx.fillStyle = color;
-    ctx.fillRect(x * BLOCK, y * BLOCK, BLOCK, BLOCK);
+    ctx.fillRect(px, py, BLOCK, BLOCK);
+
     ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    ctx.strokeRect(x * BLOCK + 0.5, y * BLOCK + 0.5, BLOCK - 1, BLOCK - 1);
+    ctx.strokeRect(px + 0.5, py + 0.5, BLOCK - 1, BLOCK - 1);
+
+    if (label) {
+      ctx.globalAlpha = Math.min(1, alpha + 0.2);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(px + 2, py + 2, BLOCK - 4, 11);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.font = 'bold 8px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(labelFor(label), px + BLOCK / 2, py + 3);
+    }
+
     ctx.restore();
   }
 
@@ -157,12 +209,22 @@
   let running;
   let paused;
 
+  let conceptIdx = 0;
+
+  function nextConceptLabel() {
+    const belt = beltForLevel(level);
+    const arr = belt.concepts;
+    const label = arr[conceptIdx % arr.length];
+    conceptIdx++;
+    return label;
+  }
+
   function newPiece(type) {
     return {
       type,
       m: SHAPES[type].map(r => r.slice()),
       x: 3,
-      y: -1,
+      y: -1
     };
   }
 
@@ -191,20 +253,20 @@
   }
 
   function lockPiece() {
+    // Assign lean concept labels to each brick as it becomes part of the stack.
     for (let y = 0; y < 4; y++) {
       for (let x = 0; x < 4; x++) {
         if (!current.m[y][x]) continue;
         const bx = current.x + x;
         const by = current.y + y;
         if (by < 0) {
-          // game over
           running = false;
           paused = false;
           render();
           alert('Game Over');
           return;
         }
-        board[by][bx] = current.type;
+        board[by][bx] = { type: current.type, label: nextConceptLabel() };
       }
     }
 
@@ -218,11 +280,10 @@
       for (let x = 0; x < COLS; x++) {
         if (!board[y][x]) continue outer;
       }
-      // full row
       board.splice(y, 1);
       board.unshift(Array.from({ length: COLS }, () => null));
       cleared++;
-      y++; // re-check same y index after shift
+      y++;
     }
 
     if (cleared > 0) {
@@ -253,7 +314,6 @@
 
   function rotate() {
     const rotated = rotateMatrixCW(current.m);
-    // basic wall kick attempts
     const kicks = [0, -1, 1, -2, 2];
     for (const k of kicks) {
       if (canPlace(current, k, 0, rotated)) {
@@ -267,7 +327,6 @@
   function spawnNext() {
     current = next;
     next = newPiece(takeFromBag());
-    // reset spawn position
     current.x = 3;
     current.y = -1;
 
@@ -285,6 +344,8 @@
     score = 0;
     lines = 0;
     level = 1;
+    conceptIdx = 0;
+
     dropIntervalMs = 800;
     lastTime = undefined;
     acc = 0;
@@ -298,9 +359,10 @@
   }
 
   function syncHUD() {
+    const belt = beltForLevel(level);
     elScore.textContent = String(score);
     elLines.textContent = String(lines);
-    elLevel.textContent = String(level);
+    elLevel.textContent = `${level} · ${belt.name}`;
   }
 
   function drawNext() {
@@ -334,11 +396,11 @@
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         const cell = board[y][x];
-        if (cell) drawCell(x, y, COLORS[cell]);
+        if (cell) drawCell(x, y, COLORS[cell.type], cell.label);
       }
     }
 
-    // ghost
+    // ghost (no labels)
     if (running && !paused) {
       const gy = ghostY();
       for (let y = 0; y < 4; y++) {
@@ -346,25 +408,36 @@
           if (!current.m[y][x]) continue;
           const px = current.x + x;
           const py = gy + y;
-          if (py >= 0) drawCell(px, py, COLORS.GHOST, 1);
+          if (py >= 0) drawCell(px, py, COLORS.GHOST, '', 1);
         }
       }
     }
 
-    // current
+    // current (no labels)
     if (current) {
       for (let y = 0; y < 4; y++) {
         for (let x = 0; x < 4; x++) {
           if (!current.m[y][x]) continue;
           const px = current.x + x;
           const py = current.y + y;
-          if (py >= 0) drawCell(px, py, COLORS[current.type]);
+          if (py >= 0) drawCell(px, py, COLORS[current.type], '');
         }
       }
     }
 
     drawGrid();
     drawNext();
+
+    // overlay: belt/progression hint
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(0, 0, canvas.width, 22);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = 'bold 12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`Lean Six Sigma — ${beltForLevel(level).name}`, 8, 11);
+    ctx.restore();
 
     if (!running) {
       ctx.save();
@@ -401,7 +474,6 @@
     lastTime = time;
     acc += dt;
 
-    // Auto drop
     if (acc > dropIntervalMs) {
       acc = 0;
       if (canPlace(current, 0, 1)) {
@@ -471,6 +543,7 @@
   let touchStartX = null;
   let touchStartY = null;
   let lastMoveAt = 0;
+
   canvas.addEventListener('touchstart', (e) => {
     if (!running) return;
     const t = e.changedTouches[0];
@@ -528,6 +601,7 @@
   lines = 0;
   level = 1;
   dropIntervalMs = 800;
+  conceptIdx = 0;
   running = false;
   paused = false;
   syncHUD();
