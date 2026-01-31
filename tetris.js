@@ -22,16 +22,33 @@
   };
 
   // Lean Six Sigma progression (Green Belt → Black Belt manufacturing)
-  // Note: labels are kept short to fit in bricks.
+  // Goal: *one concept per tetromino*, printed once across the piece (more readable).
   const BELTS = [
     {
       name: 'Green Belt',
       fromLevel: 1,
       toLevel: 3,
       concepts: [
-        'DMAIC', 'SIPOC', 'VOC', 'CTQ', '5S', 'VSM', 'KAIZEN', 'GEMBA',
-        'TAKT', 'KANBAN', 'POKAY', 'ANDON', 'OEE', 'SMED', 'TPM',
-        'SPC', 'MSA', 'FMEA', 'PARETO', '5WHY'
+        { code: 'DMAIC', desc: 'Define–Measure–Analyze–Improve–Control improvement cycle.' },
+        { code: 'SIPOC', desc: 'Suppliers–Inputs–Process–Outputs–Customers high-level map.' },
+        { code: 'VOC', desc: 'Voice of Customer: needs, pain points, expectations.' },
+        { code: 'CTQ', desc: 'Critical-to-Quality requirements that drive specs.' },
+        { code: '5S', desc: 'Sort, Set in order, Shine, Standardize, Sustain.' },
+        { code: 'VSM', desc: 'Value Stream Map to see flow, waste, bottlenecks.' },
+        { code: 'KAIZEN', desc: 'Continuous improvement through small frequent changes.' },
+        { code: 'GEMBA', desc: 'Go to the place of work to understand reality.' },
+        { code: 'TAKT', desc: 'Production pace needed to meet customer demand.' },
+        { code: 'KANBAN', desc: 'Pull system to control WIP and signal replenishment.' },
+        { code: 'POKAY', desc: 'Poka‑yoke: mistake-proofing to prevent defects.' },
+        { code: 'ANDON', desc: 'Visual alert to surface abnormalities immediately.' },
+        { code: 'OEE', desc: 'Overall Equipment Effectiveness: availability×performance×quality.' },
+        { code: 'SMED', desc: 'Single-Minute Exchange of Dies: reduce changeover time.' },
+        { code: 'TPM', desc: 'Total Productive Maintenance to improve equipment reliability.' },
+        { code: 'SPC', desc: 'Statistical Process Control: charts to monitor stability.' },
+        { code: 'MSA', desc: 'Measurement System Analysis: ensure measurement trust.' },
+        { code: 'FMEA', desc: 'Failure Modes & Effects Analysis: anticipate and mitigate risk.' },
+        { code: 'PARETO', desc: '80/20 prioritization: focus on the vital few causes.' },
+        { code: '5WHY', desc: 'Ask “why” five times to reach root cause.' }
       ]
     },
     {
@@ -39,19 +56,24 @@
       fromLevel: 4,
       toLevel: 99,
       concepts: [
-        'DOE', 'ANOVA', 'REG', 'HYP', 'Cpk', 'Cp', 'CONTROL', 'DFSS',
-        'CT', 'Y=F(X)', 'SPC', 'MSA', 'FMEA', 'OEE', 'TPM', 'SMED',
-        'VSM', 'TAKT', 'KANBAN', 'HEIJ'
+        { code: 'DOE', desc: 'Design of Experiments to learn cause→effect efficiently.' },
+        { code: 'ANOVA', desc: 'Analysis of Variance: compare means across groups.' },
+        { code: 'REG', desc: 'Regression: model Y as a function of Xs.' },
+        { code: 'HYP', desc: 'Hypothesis testing: decide with statistical confidence.' },
+        { code: 'Cp', desc: 'Process capability vs spec width (centering ignored).' },
+        { code: 'Cpk', desc: 'Process capability considering centering.' },
+        { code: 'CTRL', desc: 'Control plan: sustain gains with monitoring & reaction.' },
+        { code: 'DFSS', desc: 'Design for Six Sigma: build capability into design.' },
+        { code: 'CT', desc: 'Cycle time: end-to-end time through the process.' },
+        { code: 'Y=fX', desc: 'Core model: output Y is a function of inputs X.' },
+        { code: 'HEIJ', desc: 'Heijunka: level scheduling to reduce variability.' },
+        { code: 'WIP', desc: 'Work-in-progress: control it to improve flow.' },
+        { code: 'FLOW', desc: 'Make work flow smoothly; remove queues & handoffs.' },
+        { code: 'VAR', desc: 'Variation reduction: stabilize before optimizing.' },
+        { code: 'RTY', desc: 'Rolled Throughput Yield: yield across all steps.' }
       ]
     }
   ];
-
-  const labelFor = (s) => {
-    const t = String(s || '').trim();
-    if (!t) return '';
-    // Max ~6 chars for readability in a 30px cell
-    return t.length > 6 ? t.slice(0, 6) : t;
-  };
 
   function beltForLevel(level) {
     return BELTS.find(b => level >= b.fromLevel && level <= b.toLevel) || BELTS[0];
@@ -136,11 +158,11 @@
   }
 
   function makeBoard() {
-    // cell = null | { type: 'I'|'O'|..., label: 'DMAIC' }
+    // cell = null | { type: 'I'|'O'|..., pieceId: 'p1', concept: {code, desc} }
     return Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => null));
   }
 
-  function drawCell(x, y, color, label, alpha = 1) {
+  function drawCell(x, y, color, alpha = 1) {
     ctx.save();
     ctx.globalAlpha = alpha;
 
@@ -152,18 +174,6 @@
 
     ctx.strokeStyle = 'rgba(0,0,0,0.25)';
     ctx.strokeRect(px + 0.5, py + 0.5, BLOCK - 1, BLOCK - 1);
-
-    if (label) {
-      ctx.globalAlpha = Math.min(1, alpha + 0.2);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(px + 2, py + 2, BLOCK - 4, 11);
-
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.font = 'bold 8px system-ui, -apple-system, Segoe UI, Roboto, Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(labelFor(label), px + BLOCK / 2, py + 3);
-    }
 
     ctx.restore();
   }
@@ -210,13 +220,14 @@
   let paused;
 
   let conceptIdx = 0;
+  let pieceSeq = 0;
 
-  function nextConceptLabel() {
+  function nextConcept() {
     const belt = beltForLevel(level);
     const arr = belt.concepts;
-    const label = arr[conceptIdx % arr.length];
+    const concept = arr[conceptIdx % arr.length];
     conceptIdx++;
-    return label;
+    return concept;
   }
 
   function newPiece(type) {
@@ -253,7 +264,16 @@
   }
 
   function lockPiece() {
-    // Assign lean concept labels to each brick as it becomes part of the stack.
+    // Assign ONE concept per tetromino (piece), not per cell.
+    const concept = nextConcept();
+    const pieceId = `p${++pieceSeq}`;
+
+    // Update "Concept" card in the UI
+    const elCode = document.getElementById('conceptCode');
+    const elDesc = document.getElementById('conceptDesc');
+    if (elCode) elCode.textContent = concept.code;
+    if (elDesc) elDesc.textContent = concept.desc;
+
     for (let y = 0; y < 4; y++) {
       for (let x = 0; x < 4; x++) {
         if (!current.m[y][x]) continue;
@@ -266,7 +286,7 @@
           alert('Game Over');
           return;
         }
-        board[by][bx] = { type: current.type, label: nextConceptLabel() };
+        board[by][bx] = { type: current.type, pieceId, concept };
       }
     }
 
@@ -345,6 +365,13 @@
     lines = 0;
     level = 1;
     conceptIdx = 0;
+    pieceSeq = 0;
+
+    // reset concept card
+    const elCode = document.getElementById('conceptCode');
+    const elDesc = document.getElementById('conceptDesc');
+    if (elCode) elCode.textContent = '—';
+    if (elDesc) elDesc.textContent = '—';
 
     dropIntervalMs = 800;
     lastTime = undefined;
@@ -389,6 +416,70 @@
     }
   }
 
+  function drawPieceLabels() {
+    // Find unique pieceIds and draw the concept code centered across their bounding box.
+    const pieces = new Map();
+
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const cell = board[y][x];
+        if (!cell) continue;
+        const key = cell.pieceId;
+        if (!pieces.has(key)) {
+          pieces.set(key, {
+            pieceId: key,
+            concept: cell.concept,
+            minX: x,
+            maxX: x,
+            minY: y,
+            maxY: y,
+          });
+        } else {
+          const p = pieces.get(key);
+          p.minX = Math.min(p.minX, x);
+          p.maxX = Math.max(p.maxX, x);
+          p.minY = Math.min(p.minY, y);
+          p.maxY = Math.max(p.maxY, y);
+        }
+      }
+    }
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    for (const p of pieces.values()) {
+      if (!p.concept?.code) continue;
+
+      const widthCells = (p.maxX - p.minX + 1);
+      const heightCells = (p.maxY - p.minY + 1);
+
+      // Prefer wider surfaces (readability). Skip very tiny bounding boxes.
+      if (widthCells < 3 && heightCells < 2) continue;
+
+      const x0 = p.minX * BLOCK;
+      const y0 = p.minY * BLOCK;
+      const w = widthCells * BLOCK;
+      const h = heightCells * BLOCK;
+
+      // Background strip for contrast
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      const stripH = 14;
+      const sy = y0 + Math.max(6, (h - stripH) / 2);
+      ctx.fillRect(x0 + 2, sy, w - 4, stripH);
+
+      // Font size adapts to width
+      const maxChars = Math.max(3, String(p.concept.code).length);
+      const base = Math.floor((w / maxChars) * 0.9);
+      const fontSize = Math.max(10, Math.min(16, base));
+      ctx.font = `900 ${fontSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillText(String(p.concept.code), x0 + w / 2, sy + stripH / 2 + 0.5);
+    }
+
+    ctx.restore();
+  }
+
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -396,7 +487,7 @@
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         const cell = board[y][x];
-        if (cell) drawCell(x, y, COLORS[cell.type], cell.label);
+        if (cell) drawCell(x, y, COLORS[cell.type]);
       }
     }
 
@@ -408,7 +499,7 @@
           if (!current.m[y][x]) continue;
           const px = current.x + x;
           const py = gy + y;
-          if (py >= 0) drawCell(px, py, COLORS.GHOST, '', 1);
+          if (py >= 0) drawCell(px, py, COLORS.GHOST, 1);
         }
       }
     }
@@ -420,10 +511,13 @@
           if (!current.m[y][x]) continue;
           const px = current.x + x;
           const py = current.y + y;
-          if (py >= 0) drawCell(px, py, COLORS[current.type], '');
+          if (py >= 0) drawCell(px, py, COLORS[current.type]);
         }
       }
     }
+
+    // piece labels (draw once per tetromino on the stack)
+    drawPieceLabels();
 
     drawGrid();
     drawNext();
