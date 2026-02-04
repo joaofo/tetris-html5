@@ -136,9 +136,12 @@
   const elScore = document.getElementById('score');
   const elLines = document.getElementById('lines');
   const elLevel = document.getElementById('level');
+  const elNextConceptCode = document.getElementById('nextConceptCode');
+  const elNextConceptDesc = document.getElementById('nextConceptDesc');
 
   const btnStart = document.getElementById('btnStart');
   const btnPause = document.getElementById('btnPause');
+  const btnAuto = document.getElementById('btnAuto');
 
   const tLeft = document.getElementById('tLeft');
   const tRight = document.getElementById('tRight');
@@ -218,6 +221,7 @@
   let acc;
   let running;
   let paused;
+  let autopilot;
 
   let conceptIdx = 0;
   let pieceSeq = 0;
@@ -228,6 +232,12 @@
     const concept = arr[conceptIdx % arr.length];
     conceptIdx++;
     return concept;
+  }
+
+  function peekNextConcept() {
+    const belt = beltForLevel(level);
+    const arr = belt.concepts;
+    return arr[conceptIdx % arr.length];
   }
 
   function newPiece(type) {
@@ -349,6 +359,7 @@
     next = newPiece(takeFromBag());
     current.x = 3;
     current.y = -1;
+    updateNextConcept();
 
     if (!canPlace(current, 0, 0)) {
       running = false;
@@ -372,6 +383,8 @@
     const elDesc = document.getElementById('conceptDesc');
     if (elCode) elCode.textContent = '—';
     if (elDesc) elDesc.textContent = '—';
+    if (elNextConceptCode) elNextConceptCode.textContent = '—';
+    if (elNextConceptDesc) elNextConceptDesc.textContent = '—';
 
     dropIntervalMs = 800;
     lastTime = undefined;
@@ -381,6 +394,7 @@
 
     current = newPiece(takeFromBag());
     next = newPiece(takeFromBag());
+    updateNextConcept();
     syncHUD();
     render();
   }
@@ -392,11 +406,18 @@
     elLevel.textContent = `${level} · ${belt.name}`;
   }
 
+  function updateNextConcept() {
+    const upcoming = peekNextConcept();
+    if (!upcoming) return;
+    if (elNextConceptCode) elNextConceptCode.textContent = upcoming.code;
+    if (elNextConceptDesc) elNextConceptDesc.textContent = upcoming.desc;
+  }
+
   function drawNext() {
     nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-    const size = 24;
-    const offsetX = 12;
-    const offsetY = 12;
+    const size = 20;
+    const offsetX = 14;
+    const offsetY = 8;
     const color = COLORS[next.type];
 
     nextCtx.fillStyle = '#070a10';
@@ -578,6 +599,7 @@
     }
 
     render();
+    if (autopilot) runAutopilotTurn();
     requestAnimationFrame(tick);
   }
 
@@ -611,6 +633,103 @@
     render();
   }
 
+  function updateAutopilotButton() {
+    if (!btnAuto) return;
+    btnAuto.textContent = autopilot ? 'Autopilot: On' : 'Autopilot: Off';
+    btnAuto.setAttribute('aria-pressed', String(autopilot));
+  }
+
+  function toggleAutopilot() {
+    autopilot = !autopilot;
+    updateAutopilotButton();
+    if (autopilot) runAutopilotTurn();
+  }
+
+  function canPlaceAt(x, y, matrix) {
+    return canPlace({ x, y, m: matrix }, 0, 0, matrix);
+  }
+
+  function simulatePlacement(matrix, x, y) {
+    const clone = board.map(row => row.slice());
+    for (let py = 0; py < 4; py++) {
+      for (let px = 0; px < 4; px++) {
+        if (!matrix[py][px]) continue;
+        const bx = x + px;
+        const by = y + py;
+        if (by >= 0) clone[by][bx] = { type: current.type };
+      }
+    }
+
+    let cleared = 0;
+    for (let row = ROWS - 1; row >= 0; row--) {
+      if (clone[row].every(cell => cell)) {
+        clone.splice(row, 1);
+        clone.unshift(Array.from({ length: COLS }, () => null));
+        cleared++;
+        row++;
+      }
+    }
+
+    return { board: clone, cleared };
+  }
+
+  function evaluateBoard(testBoard, cleared) {
+    const heights = [];
+    let holes = 0;
+
+    for (let x = 0; x < COLS; x++) {
+      let y = 0;
+      while (y < ROWS && !testBoard[y][x]) y++;
+      const height = ROWS - y;
+      heights.push(height);
+
+      let foundBlock = false;
+      for (let yy = 0; yy < ROWS; yy++) {
+        if (testBoard[yy][x]) foundBlock = true;
+        else if (foundBlock) holes++;
+      }
+    }
+
+    let bumpiness = 0;
+    for (let i = 0; i < heights.length - 1; i++) {
+      bumpiness += Math.abs(heights[i] - heights[i + 1]);
+    }
+
+    const aggregateHeight = heights.reduce((sum, h) => sum + h, 0);
+    return cleared * 12 - aggregateHeight * 0.6 - holes * 6 - bumpiness * 0.8;
+  }
+
+  function planAutopilotMove() {
+    let best = null;
+    let matrix = current.m.map(r => r.slice());
+
+    for (let r = 0; r < 4; r++) {
+      for (let x = -2; x < COLS; x++) {
+        let y = -1;
+        if (!canPlaceAt(x, y, matrix)) continue;
+        while (canPlaceAt(x, y + 1, matrix)) y++;
+        const { board: testBoard, cleared } = simulatePlacement(matrix, x, y);
+        const score = evaluateBoard(testBoard, cleared);
+        if (!best || score > best.score) {
+          best = { score, x, matrix: matrix.map(row => row.slice()) };
+        }
+      }
+      matrix = rotateMatrixCW(matrix);
+    }
+
+    return best;
+  }
+
+  function runAutopilotTurn() {
+    if (!running || paused || !current) return;
+    const plan = planAutopilotMove();
+    if (!plan) return;
+    current.m = plan.matrix;
+    current.x = plan.x;
+    current.y = -1;
+    hardDrop();
+  }
+
   // Keyboard
   window.addEventListener('keydown', (e) => {
     const k = e.key;
@@ -625,6 +744,7 @@
   // Buttons
   btnStart.addEventListener('click', startOrRestart);
   btnPause.addEventListener('click', togglePause);
+  btnAuto.addEventListener('click', toggleAutopilot);
 
   // Touch buttons
   tLeft.addEventListener('click', () => move(-1));
@@ -698,6 +818,9 @@
   conceptIdx = 0;
   running = false;
   paused = false;
+  autopilot = false;
+  updateAutopilotButton();
+  updateNextConcept();
   syncHUD();
   render();
 })();

@@ -39,6 +39,24 @@ canvas{
   border:1px solid #1e2634;
   border-radius:10px;
 }
+#next{
+  width:120px;
+  height:96px;
+}
+.next-concept{
+  margin-top:10px;
+  text-align:center;
+}
+.next-concept-code{
+  font-weight:700;
+  font-size:15px;
+}
+.next-concept-desc{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.4;
+  margin-top:4px;
+}
 .controls{display:flex;gap:10px;justify-content:center;margin:12px 0 0}
 button{
   appearance:none;
