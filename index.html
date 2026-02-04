@@ -19,6 +19,7 @@
         <div class="controls">
           <button id="btnStart" type="button">Start / Restart</button>
           <button id="btnPause" type="button">Pause</button>
+          <button id="btnAuto" type="button" aria-pressed="false">Autopilot: Off</button>
         </div>
         <p class="hint">
           Controls: ← → move · ↑ rotate · ↓ soft drop · Space hard drop · P pause
@@ -35,7 +36,11 @@
 
         <div class="card">
           <h2>Next</h2>
-          <canvas id="next" width="120" height="120" aria-label="Next piece" role="img"></canvas>
+          <canvas id="next" width="120" height="96" aria-label="Next piece" role="img"></canvas>
+          <div class="next-concept">
+            <div class="next-concept-code" id="nextConceptCode">—</div>
+            <div class="next-concept-desc" id="nextConceptDesc">—</div>
+          </div>
         </div>
 
         <div class="card">
