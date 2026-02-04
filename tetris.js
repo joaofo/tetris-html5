@@ -222,6 +222,10 @@
   let running;
   let paused;
   let autopilot;
+  // Autopilot pacing (ms). Higher = slower.
+  const AUTOPILOT_DELAY_MS = 650;
+  let autopilotNextAt = 0;
+  let autopilotNeedsPlan = false;
 
   let conceptIdx = 0;
   let pieceSeq = 0;
@@ -361,6 +365,9 @@
     current.y = -1;
     updateNextConcept();
 
+    // Trigger autopilot planning for the newly spawned piece.
+    if (autopilot) autopilotNeedsPlan = true;
+
     if (!canPlace(current, 0, 0)) {
       running = false;
       paused = false;
@@ -395,6 +402,10 @@
     current = newPiece(takeFromBag());
     next = newPiece(takeFromBag());
     updateNextConcept();
+
+    autopilotNextAt = 0;
+    autopilotNeedsPlan = autopilot;
+
     syncHUD();
     render();
   }
@@ -599,7 +610,20 @@
     }
 
     render();
-    if (autopilot) runAutopilotTurn();
+
+    // Autopilot: pace decisions so it doesn't insta-play at full frame rate.
+    if (autopilot) {
+      if (autopilotNeedsPlan) {
+        autopilotNeedsPlan = false;
+        autopilotNextAt = time + AUTOPILOT_DELAY_MS;
+      }
+      if (time >= autopilotNextAt) {
+        // After acting, wait for the next piece spawn to schedule again.
+        autopilotNextAt = Infinity;
+        runAutopilotTurn();
+      }
+    }
+
     requestAnimationFrame(tick);
   }
 
@@ -642,7 +666,10 @@
   function toggleAutopilot() {
     autopilot = !autopilot;
     updateAutopilotButton();
-    if (autopilot) runAutopilotTurn();
+    if (autopilot) {
+      autopilotNeedsPlan = true;
+      autopilotNextAt = 0;
+    }
   }
 
   function canPlaceAt(x, y, matrix) {
